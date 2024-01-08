@@ -1,0 +1,41 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="LossyEncoding" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="27">
+            <item index="0" class="java.lang.String" itemvalue="httpx" />
+            <item index="1" class="java.lang.String" itemvalue="qt5-applications" />
+            <item index="2" class="java.lang.String" itemvalue="python-dotenv" />
+            <item index="3" class="java.lang.String" itemvalue="pyttsx3" />
+            <item index="4" class="java.lang.String" itemvalue="qt5-tools" />
+            <item index="5" class="java.lang.String" itemvalue="h11" />
+            <item index="6" class="java.lang.String" itemvalue="h2" />
+            <item index="7" class="java.lang.String" itemvalue="PyQt5-sip" />
+            <item index="8" class="java.lang.String" itemvalue="rfc3986" />
+            <item index="9" class="java.lang.String" itemvalue="sniffio" />
+            <item index="10" class="java.lang.String" itemvalue="pyttsx" />
+            <item index="11" class="java.lang.String" itemvalue="Pygments" />
+            <item index="12" class="java.lang.String" itemvalue="PyQt5" />
+            <item index="13" class="java.lang.String" itemvalue="docutils" />
+            <item index="14" class="java.lang.String" itemvalue="pyqt5-tools" />
+            <item index="15" class="java.lang.String" itemvalue="comtypes" />
+            <item index="16" class="java.lang.String" itemvalue="urllib3" />
+            <item index="17" class="java.lang.String" itemvalue="pywin32" />
+            <item index="18" class="java.lang.String" itemvalue="hyperframe" />
+            <item index="19" class="java.lang.String" itemvalue="hstspreload" />
+            <item index="20" class="java.lang.String" itemvalue="hpack" />
+            <item index="21" class="java.lang.String" itemvalue="pyqtgraph" />
+            <item index="22" class="java.lang.String" itemvalue="pyqt5-plugins" />
+            <item index="23" class="java.lang.String" itemvalue="charset-normalizer" />
+            <item index="24" class="java.lang.String" itemvalue="pypiwin32" />
+            <item index="25" class="java.lang.String" itemvalue="httpcore" />
+            <item index="26" class="java.lang.String" itemvalue="idna" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

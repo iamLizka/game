@@ -1,6 +1,7 @@
 import pygame
 import os
 import sys
+import random
 
 from const import *
 
@@ -98,7 +99,7 @@ class Grass(pygame.sprite.Sprite):
 """создание спрайта игрока"""
 class Player(pygame.sprite.Sprite):
     def __init__(self, player_image, pos_x, pos_y):
-        super().__init__(player_sprite)
+        super().__init__(all_sprites, player_sprite)
         self.image = player_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
@@ -118,11 +119,11 @@ class Player(pygame.sprite.Sprite):
     # меняем изображение игрока относительно его движения
     def animation(self, sheet, move):
         if move == "D":
-            self.change_image(sheet[self.animation_down[0]])
-            self.animation_down.append(self.animation_down[0])
-            self.animation_down.pop(0)
+            self.change_image(sheet[self.animation_down[0]])  # ставим первую в списке анимаций изображение
+            self.animation_down.append(self.animation_down[0])  # добавляем ее в конец списка
+            self.animation_down.pop(0)  # удаляем первое изображение из списка
         elif move == "U":
-            self.change_image(sheet[self.animation_up[0]])
+            self.change_image(sheet[self.animation_up[0]])  # анологично
             self.animation_up.append(self.animation_up[0])
             self.animation_up.pop(0)
         elif move == "L":
@@ -144,6 +145,7 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollideany(self, walls_sprites):  # если игрок касается стен, то перемещаем его обратно
             self.rect = self.rect.move(-step[0], -step[1])
         if pygame.sprite.spritecollideany(self, ghost_sprites):  # если игрок сталкивается с призраком, то игра окончена
+            self.rect = self.rect.move(-step[0], -step[1])
             return True
 
 
@@ -163,14 +165,16 @@ class Ghost(pygame.sprite.Sprite):
         self.animation_up = [9, 10, 11]
         self.animation_down = [0, 1, 2]
 
+        self.direction = None
+
     # меняем изображение призрака относительно его движения
     def animation(self, sheet, move):
         if move == "D":
-            self.change_image(sheet[self.animation_down[0]])
-            self.animation_down.append(self.animation_down[0])
-            self.animation_down.pop(0)
+            self.change_image(sheet[self.animation_down[0]])  # ставим первую в списке анимаций изображение
+            self.animation_down.append(self.animation_down[0])  # добавляем ее в конец списка
+            self.animation_down.pop(0)  # удаляем первое изображение из списка
         elif move == "U":
-            self.change_image(sheet[self.animation_up[0]])
+            self.change_image(sheet[self.animation_up[0]])  # анологично
             self.animation_up.append(self.animation_up[0])
             self.animation_up.pop(0)
         elif move == "L":
@@ -186,6 +190,49 @@ class Ghost(pygame.sprite.Sprite):
     def change_image(self, image):
         self.image = image
 
+    # определяем направление призрака
+    def choice_direction(self):
+        self.direction = random.choice(["R", "L", "U", "D"])
+        if self.direction == "R":
+            self.step = (STEP_GHOST, 0)
+        elif self.direction == "L":
+            self.step = (-STEP_GHOST, 0)
+        elif self.direction == "U":
+            self.step = (0, -STEP_GHOST)
+        elif self.direction == "D":
+            self.step = (0, STEP_GHOST)
+
+    # изменение положения призрака на поле
+    def update(self):
+        # флаг для работы выбора направления движения призрака,
+        # если Folse значит направление выбрано, иначе продолжаем искать
+        can = True
+        while can:
+
+            #  проверяем выбрано ли уже направление, если нет, то запускаем функцию для рандомного выбора
+            if not self.direction:
+                self.choice_direction()
+            self.rect = self.rect.move(self.step[0], self.step[1])  # сначала перемещаем призрака
+
+            # если призрак касается стен, то перемещаем его обратно
+            if pygame.sprite.spritecollideany(self, walls_sprites):
+                self.rect = self.rect.move(-self.step[0], -self.step[1])
+                self.direction = None  # значит направление не подошло, повторяем все заново
+
+            # если призрак сталкивается с игроком, то игра окончена
+            if pygame.sprite.spritecollideany(self, player_sprite):
+                self.rect = self.rect.move(-self.step[0], -self.step[1])
+                self.direction = None  # значит направление не подошло, повторяем все заново
+                return False
+
+            #  проверяем не сталкивается ли призрак с другими призраками, если да, то проделываеем все также
+            for sprite in pygame.sprite.spritecollide(self, ghost_sprites, False):
+                if sprite is not self:
+                    self.rect = self.rect.move(-self.step[0], -self.step[1])
+                    self.direction = None
+            else:
+                can = False  # значит направление выбрано
+        return self.direction  # возвращаем направление движения
 
 class Camera:
     # зададим начальный сдвиг камеры
@@ -273,6 +320,7 @@ def main():
     running = True  # флаг для основного цикла
     moving_player = False  # флаг для движения игрока
     game_overing = False  # флаг для окончания игры
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -320,12 +368,19 @@ def main():
             for sprite in ghost_sprites:  # обновление координат всех призраков
                 camera.apply(sprite)
 
+        for sprite in ghost_sprites:  # обновление координат всех призраков
+            move_ghost = sprite.update()
+            if move_ghost == False:  # это означает, что призрак столкнулся с игроком, конец игры
+                game_overing = True
+            else:
+                sprite.animation(frames_ghost, move_ghost)  # анимация призрака
+
         # отрисовка всех объектов
         all_sprites.draw(screen)
         player_sprite.draw(screen)
         ghost_sprites.draw(screen)
 
-        if game_overing:
+        if game_overing:  # если игра окончена
             game_over(screen)
 
         pygame.display.flip()
@@ -346,7 +401,7 @@ player_sprite = pygame.sprite.Group()
 
 
 frames_player = cut_sheet(load_image("player.png", (160, 160), -1), 4, 4)  # список с анимацией игрока
-frames_ghost = cut_sheet(load_image("ghost.png", (130, 150), -1), 3, 4)  # список с анимацией призрака
+frames_ghost = cut_sheet(load_image("ghost.png", (120, 150), -1), 3, 4)  # список с анимацией призрака
 # здесь получаем призраков и размеры поля в клетках
 ghost, level_x, level_y = generate_level(load_level("level_1.txt"), frames_ghost[0])
 camera = Camera()
