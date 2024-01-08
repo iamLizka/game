@@ -37,22 +37,19 @@ def load_level(filename):
 
 
 """рисование всех предметов на карте уровня"""
-def generate_level(level, player_image, ghost_image):
-    player, ghost, x, y = None, None, None, None
+def generate_level(level, ghost_image):
+    ghost, x, y = None, None, None
     for y in range(len(level)):
         for x in range(len(level[y])):
             if level[y][x] == '#':
                 Wall('wall', x, y)
             elif level[y][x] == '.':
                 Grass('grass', x, y)
-            elif level[y][x] == '@':
-                Grass('grass', x, y)
-                player = Player(player_image, x, y)
             elif level[y][x] == '$':
                 Grass('grass', x, y)
                 ghost = Ghost(ghost_image, x, y)
-    # вернем игрока, а также размер поля в клетках
-    return player, ghost, x, y
+    # вернем призраков, а также размер поля в клетках
+    return ghost, x, y
 
 
 """разрезание листа с анимацией игрока"""
@@ -206,19 +203,11 @@ class Camera:
         obj.rect.y += self.dy
 
     # позиционируем камеру относительно движения объекта
-    def update(self, target, old, coord_block, step_player, full_screen):
-        if full_screen:
-            width_screen, height_screen = (pygame.display.Info().current_w, pygame.display.Info().current_h)
-            distance_left_right = 300
-            distance_up_down = 250
-        else:
-            width_screen, height_screen = WIDTH_SCREEN, HEIGHT_SCREEN
-            distance_left_right = 250
-            distance_up_down = 200
+    def update(self, target, old, coord_block, step_player,):
 
         # если игрок находиться в левой части экрана и движеться влево,
         # то проверяем где находится блок стены с координатами (0, 0)
-        if target.rect.x <= distance_left_right and step_player[0] < 0:
+        if target.rect.x <= 250 and step_player[0] < 0:
 
             if coord_block[0][0] != 0:  # если координата х блока не равна 0, то делаем смещение для всех объектов
                 self.dx = old[0] - target.rect.x
@@ -231,21 +220,20 @@ class Camera:
         # если игрок находиться в правой части экрана и движеться вправо,
         # то проверяем где находится блок стены с координатами (WIDTH_SCREEN - size_block, HEIGHT_SCREEN - size_block),
         # т.е. самого правого нижнего блока
-        elif target.rect.x >= width_screen - distance_left_right and step_player[0] > 0:
-            print(coord_block[1][0], width_screen - size_block)
+        elif target.rect.x >= WIDTH_SCREEN - 250 and step_player[0] > 0:
             # если координата х блока не равна (WIDTH_SCREEN - size_block), то делаем смещение для всех объектов
-            if coord_block[1][0] >= width_screen - size_block:
+            if coord_block[1][0] != WIDTH_SCREEN - size_block:
                 self.dx = old[0] - target.rect.x
                 # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
                 player.update((-step_player[0], -step_player[1]))
 
             # если координата х блока равна (WIDTH_SCREEN - size_block), то смщение не делаем
-            elif coord_block[1][0] < width_screen - size_block:
+            elif coord_block[1][0] == WIDTH_SCREEN - size_block:
                 self.dx = 0
 
         # если игрок находиться в верхней части экрана и движеться вверх,
         # то проверяем где находится блок стены с координатами (0, 0)
-        elif target.rect.y <= distance_up_down and step_player[1] < 0:
+        elif target.rect.y <= 200 and step_player[1] < 0:
 
             if coord_block[0][1] != 0:  # если координата у блока не равна 0, то делаем смещение для всех объектов
                 self.dy = old[1] - target.rect.y
@@ -258,16 +246,16 @@ class Camera:
         # если игрок находиться в нижней части экрана и движеться вниз,
         # то проверяем где находится блок стены с координатами (WIDTH_SCREEN - size_block, HEIGHT_SCREEN - size_block),
         # т.е. самого правого нижнего блока
-        elif target.rect.y >= height_screen - distance_up_down and step_player[1] > 0:
+        elif target.rect.y >= HEIGHT_SCREEN - 200 and step_player[1] > 0:
 
             # если координата у блока не равна (HEIGHT_SCREEN - size_block), то делаем смещение для всех объектов
-            if coord_block[1][1] >= height_screen - size_block:
+            if coord_block[1][1] != HEIGHT_SCREEN - size_block:
                 self.dy = old[1] - target.rect.y
                 # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
                 player.update((-step_player[0], -step_player[1]))
 
             # если координата у блока равна (HEIGHT_SCREEN - size_block), то смщение не делаем
-            elif coord_block[1][1] < height_screen - size_block:
+            elif coord_block[1][1] == HEIGHT_SCREEN - size_block:
                 self.dy = 0
         else:
             self.dx = 0
@@ -285,20 +273,13 @@ def main():
     running = True  # флаг для основного цикла
     moving_player = False  # флаг для движения игрока
     game_overing = False  # флаг для окончания игры
-    full_screen = False  # флаг для полноэкранного режима
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    if full_screen:
-                        pygame.display.set_mode(size)
-                        full_screen = False
-                    else:
-                        pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-                        full_screen = True
+
                 if event.key == pygame.K_RIGHT:
                     step, move = (STEP_PLAYER, 0), "R"
                     moving_player = True
@@ -331,7 +312,7 @@ def main():
                               camera.get_coord_block(all_sprites.sprites()[-1])]
 
             # обновляем положение камеры, передавая ей игрока, старые координаты игрока координаты блоков и смещение иг.
-            camera.update(player, old_coords, coords_block, step, full_screen)
+            camera.update(player, old_coords, coords_block, step)
 
             for sprite in all_sprites:  # обновление координат всех спрайтов
                 camera.apply(sprite)
@@ -366,9 +347,10 @@ player_sprite = pygame.sprite.Group()
 
 frames_player = cut_sheet(load_image("player.png", (160, 160), -1), 4, 4)  # список с анимацией игрока
 frames_ghost = cut_sheet(load_image("ghost.png", (130, 150), -1), 3, 4)  # список с анимацией призрака
-# здесь получаем игрока и размеры поля в клетках
-player, ghost, level_x, level_y = generate_level(load_level("level_2.txt"), frames_player[0], frames_ghost[0])
+# здесь получаем призраков и размеры поля в клетках
+ghost, level_x, level_y = generate_level(load_level("level_1.txt"), frames_ghost[0])
 camera = Camera()
+player = Player(frames_player[0], 1, 1)  # создаем игрока
 
 clock = pygame.time.Clock()
 FPS = 15
