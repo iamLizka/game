@@ -1,0 +1,6 @@
+WIDTH_SCREEN = 1120
+HEIGHT_SCREEN = 720
+
+size_block = 40
+
+STEP_PLAYER = 10
