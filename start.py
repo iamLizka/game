@@ -44,6 +44,8 @@ def generate_level(level, ghost_image):
         for x in range(len(level[y])):
             if level[y][x] == '#':
                 Wall('wall', x, y)
+            elif level[y][x] == '%':
+                Wall('wall_2', x, y)
             elif level[y][x] == '.':
                 Grass('grass', x, y)
             elif level[y][x] == '$':
@@ -99,7 +101,7 @@ class Grass(pygame.sprite.Sprite):
 """создание спрайта игрока"""
 class Player(pygame.sprite.Sprite):
     def __init__(self, player_image, pos_x, pos_y):
-        super().__init__(all_sprites, player_sprite)
+        super().__init__(player_sprite)
         self.image = player_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
@@ -107,10 +109,10 @@ class Player(pygame.sprite.Sprite):
         self.rect.y = size_block * pos_y
 
         # индексы в списки с анимацией относительно направления движения игрока
-        self.animation_right = [13, 14, 15]
-        self.animation_left = [9, 10, 11]
-        self.animation_up = [5, 6, 7]
-        self.animation_down = [1, 2, 3]
+        self.animation_right = [9, 10, 11]
+        self.animation_left = [6, 7, 8]
+        self.animation_up = [3, 4, 5]
+        self.animation_down = [0, 1, 2]
 
     # координаты игрока
     def get_coords(self):
@@ -251,7 +253,6 @@ class Camera:
 
     # позиционируем камеру относительно движения объекта
     def update(self, target, old, coord_block, step_player):
-        print(step_player)
 
         # если игрок находиться в левой части экрана и движеться влево,
         # то проверяем где находится блок стены с координатами (0, 0)
@@ -344,9 +345,9 @@ class Bullet(pygame.sprite.Sprite):
 
 # определяем координаты пули и создаем ее
 def attack(move_attack, bullet_image, player_coords):
-    x = player_coords[0] + 10
+    x = player_coords[0] + 15
     y = player_coords[1] + 20
-    bullet = Bullet(bullet_image, x, y, move_attack)
+    Bullet(bullet_image, x, y, move_attack)
 
 
 """основная функция"""
@@ -439,6 +440,7 @@ def main():
 
 #  словарь с изображениями стены и травы
 blocks_images = {"wall": load_image("wall.png"),
+                 "wall_2": load_image("wall_4.webp"),
                  "grass": load_image("grass.png")}
 
 # создание групп спрайтов
@@ -449,14 +451,13 @@ ghost_sprites = pygame.sprite.Group()
 player_sprite = pygame.sprite.Group()
 bullet_sprites = pygame.sprite.Group()
 
-
-frames_player = cut_sheet(load_image("player.png", (160, 160), -1), 4, 4)  # список с анимацией игрока
+frames_player = cut_sheet(load_image("player.png", (120, 160), -1), 3, 4)  # список с анимацией игрока
 frames_ghost = cut_sheet(load_image("ghost.png", (110, 150), -1), 3, 4)  # список с анимацией призрака
+bullet_image = load_image("bullet.png", (10, 10), -1)  # загрузка изображения пули
 # здесь получаем призраков и размеры поля в клетках
-ghost, level_x, level_y = generate_level(load_level("level_2.txt"), frames_ghost[0])
-camera = Camera()
+ghost, level_x, level_y = generate_level(load_level("level_1.txt"), frames_ghost[0])
+camera = Camera()  # создаем камеры
 player = Player(frames_player[0], 1, 1)  # создаем игрока
-bullet_image = load_image("bullet.png", (15, 15), -1)
 
 clock = pygame.time.Clock()
 FPS = 15
