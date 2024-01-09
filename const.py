@@ -5,3 +5,5 @@ size_block = 40
 
 STEP_PLAYER = 10
 STEP_GHOST = 7
+
+SPEED_BULLET = 10

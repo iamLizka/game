@@ -250,7 +250,8 @@ class Camera:
         obj.rect.y += self.dy
 
     # позиционируем камеру относительно движения объекта
-    def update(self, target, old, coord_block, step_player,):
+    def update(self, target, old, coord_block, step_player):
+        print(step_player)
 
         # если игрок находиться в левой части экрана и движеться влево,
         # то проверяем где находится блок стены с координатами (0, 0)
@@ -309,13 +310,52 @@ class Camera:
             self.dy = 0
 
 
+"""создание спрайта пули игрока"""
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, bullet_image, pos_x, pos_y, move):
+        super().__init__(bullet_sprites)
+        self.image = bullet_image
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = pos_x
+        self.rect.y = pos_y
+        self.find_step_bullet(move)
+
+    # определяем шаг пули, исходя из напраления движения
+    def find_step_bullet(self, move_attack):
+        if move_attack == "D":
+            self.step = (0, SPEED_BULLET)
+        elif move_attack == "U":
+            self.step = (0, -SPEED_BULLET)
+        elif move_attack == "R":
+            self.step = (SPEED_BULLET, 0)
+        elif move_attack == "L":
+            self.step = (-SPEED_BULLET, 0)
+
+    # изменение положения пули на поле
+    def update(self):
+        self.rect = self.rect.move(self.step[0], self.step[1])  # сначала перемещаем пулю
+        if pygame.sprite.spritecollideany(self, walls_sprites):  # если пуля касается стен, то удаляем ее
+            self.kill()
+
+        # если пуля сталкивается с призраком, то удаляем призрака и пулю
+        if pygame.sprite.spritecollide(self, ghost_sprites, True):
+            self.kill()
+
+# определяем координаты пули и создаем ее
+def attack(move_attack, bullet_image, player_coords):
+    x = player_coords[0] + 10
+    y = player_coords[1] + 20
+    bullet = Bullet(bullet_image, x, y, move_attack)
+
+
 """основная функция"""
 def main():
     pygame.init()
     size = WIDTH_SCREEN, HEIGHT_SCREEN
     screen = pygame.display.set_mode(size)
 
-    step, move = None, None
+    step, move = None, "D"
 
     running = True  # флаг для основного цикла
     moving_player = False  # флаг для движения игрока
@@ -327,6 +367,9 @@ def main():
                 running = False
 
             if event.type == pygame.KEYDOWN:
+
+                if event.key == pygame.K_r:
+                    attack(move, bullet_image, player.get_coords())  # запускаем функцию по созданию пули
 
                 if event.key == pygame.K_RIGHT:
                     step, move = (STEP_PLAYER, 0), "R"
@@ -342,12 +385,17 @@ def main():
                     moving_player = True
 
             if event.type == pygame.KEYUP:
-                moving_player = False
-                player.change_image(frames_player[0])
+                if event.key == pygame.K_LEFT or event.key == pygame.K_RIGHT\
+                        or event.key == pygame.K_UP or event.key == pygame.K_DOWN:
+                    moving_player = False
+                    player.change_image(frames_player[0])
 
         screen.fill((0, 0, 0))
 
         old_coords = player.get_coords()  # координаты игрока перед ходом
+
+        for sprite in bullet_sprites:  # обновление координат всех пуль
+            sprite.update()
 
         if moving_player:
             if player.update(step):  # если игра окончена, то показываем заставку
@@ -379,6 +427,7 @@ def main():
         all_sprites.draw(screen)
         player_sprite.draw(screen)
         ghost_sprites.draw(screen)
+        bullet_sprites.draw(screen)
 
         if game_overing:  # если игра окончена
             game_over(screen)
@@ -398,14 +447,16 @@ grass_sprites = pygame.sprite.Group()
 walls_sprites = pygame.sprite.Group()
 ghost_sprites = pygame.sprite.Group()
 player_sprite = pygame.sprite.Group()
+bullet_sprites = pygame.sprite.Group()
 
 
 frames_player = cut_sheet(load_image("player.png", (160, 160), -1), 4, 4)  # список с анимацией игрока
-frames_ghost = cut_sheet(load_image("ghost.png", (120, 150), -1), 3, 4)  # список с анимацией призрака
+frames_ghost = cut_sheet(load_image("ghost.png", (110, 150), -1), 3, 4)  # список с анимацией призрака
 # здесь получаем призраков и размеры поля в клетках
-ghost, level_x, level_y = generate_level(load_level("level_1.txt"), frames_ghost[0])
+ghost, level_x, level_y = generate_level(load_level("level_2.txt"), frames_ghost[0])
 camera = Camera()
 player = Player(frames_player[0], 1, 1)  # создаем игрока
+bullet_image = load_image("bullet.png", (15, 15), -1)
 
 clock = pygame.time.Clock()
 FPS = 15
