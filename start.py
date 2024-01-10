@@ -87,6 +87,10 @@ class Wall(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(
             size_block * pos_x, size_block * pos_y)
 
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
+
 
 """создание спрайта травы"""
 class Grass(pygame.sprite.Sprite):
@@ -97,11 +101,15 @@ class Grass(pygame.sprite.Sprite):
         self.rect = self.image.get_rect().move(
             size_block * pos_x, size_block * pos_y)
 
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
+
 
 """создание спрайта игрока"""
 class Player(pygame.sprite.Sprite):
     def __init__(self, player_image, pos_x, pos_y):
-        super().__init__(player_sprite)
+        super().__init__(player_sprite, all_sprites)
         self.image = player_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
@@ -113,6 +121,10 @@ class Player(pygame.sprite.Sprite):
         self.animation_left = [6, 7, 8]
         self.animation_up = [3, 4, 5]
         self.animation_down = [0, 1, 2]
+
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
 
     # координаты игрока
     def get_coords(self):
@@ -154,7 +166,7 @@ class Player(pygame.sprite.Sprite):
 """создание спрайта призрака"""
 class Ghost(pygame.sprite.Sprite):
     def __init__(self, ghost_image, pos_x, pos_y):
-        super().__init__(ghost_sprites)
+        super().__init__(ghost_sprites, all_sprites)
         self.image = ghost_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
@@ -168,6 +180,10 @@ class Ghost(pygame.sprite.Sprite):
         self.animation_down = [0, 1, 2]
 
         self.direction = None
+
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
 
     # меняем изображение призрака относительно его движения
     def animation(self, sheet, move):
@@ -314,13 +330,17 @@ class Camera:
 """создание спрайта пули игрока"""
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, bullet_image, pos_x, pos_y, move):
-        super().__init__(bullet_sprites)
+        super().__init__(bullet_sprites, all_sprites)
         self.image = bullet_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = pos_x
         self.rect.y = pos_y
         self.find_step_bullet(move)
+
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
 
     # определяем шаг пули, исходя из напраления движения
     def find_step_bullet(self, move_attack):
@@ -361,6 +381,7 @@ def main():
     running = True  # флаг для основного цикла
     moving_player = False  # флаг для движения игрока
     game_overing = False  # флаг для окончания игры
+    full_screen = False
 
     while running:
         for event in pygame.event.get():
@@ -371,6 +392,18 @@ def main():
 
                 if event.key == pygame.K_r:
                     attack(move, bullet_image, player.get_coords())  # запускаем функцию по созданию пули
+
+                if event.key == pygame.K_ESCAPE:
+                    if full_screen:
+                        pygame.display.set_mode(size)
+                        full_screen = False
+                        for sprite in all_sprites:
+                            sprite.update_coords((-110, -30))
+                    else:
+                        pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                        full_screen = True
+                        for sprite in all_sprites:
+                            sprite.update_coords((110, 30))
 
                 if event.key == pygame.K_RIGHT:
                     step, move = (STEP_PLAYER, 0), "R"
@@ -391,7 +424,7 @@ def main():
                     moving_player = False
                     player.change_image(frames_player[0])
 
-        screen.fill((0, 0, 0))
+        screen.fill("#808080")
 
         old_coords = player.get_coords()  # координаты игрока перед ходом
 
@@ -405,11 +438,13 @@ def main():
             player.animation(frames_player, move)
 
             # координаты левого верхнего блока карты и правого нижнего блока
-            coords_block = [camera.get_coord_block(all_sprites.sprites()[0]),
-                              camera.get_coord_block(all_sprites.sprites()[-1])]
+            coords_block = [camera.get_coord_block(walls_sprites.sprites()[0]),
+                              camera.get_coord_block(walls_sprites.sprites()[-1])]
 
-            # обновляем положение камеры, передавая ей игрока, старые координаты игрока координаты блоков и смещение иг.
-            camera.update(player, old_coords, coords_block, step)
+            # обновляем положение камеры, если выключен полноэкранный режим,
+            # передавая ей игрока, старые координаты игрока координаты блоков и смещение иг.
+            if not full_screen:
+                camera.update(player, old_coords, coords_block, step)
 
             for sprite in all_sprites:  # обновление координат всех спрайтов
                 camera.apply(sprite)
