@@ -2,8 +2,11 @@ import pygame
 import os
 import sys
 import random
+import pygame.gfxdraw
 
+import screensaver
 from const import *
+from screensaver import *
 
 """загрузка изображения"""
 def load_image(name, size=None, colorkey=None):
@@ -18,7 +21,7 @@ def load_image(name, size=None, colorkey=None):
         colorkey = image.get_at((0, 0))
         image.set_colorkey(colorkey)
     if size:
-        image = pygame.transform.scale(image, (size[0], size[1]))  # для листа с анимацией игрока
+        image = pygame.transform.scale(image, (size[0], size[1]))
     # возврашаем изображение
     return image
 
@@ -44,8 +47,6 @@ def generate_level(level, ghost_image):
         for x in range(len(level[y])):
             if level[y][x] == '#':
                 Wall('wall', x, y)
-            elif level[y][x] == '%':
-                Wall('wall_2', x, y)
             elif level[y][x] == '.':
                 Grass('grass', x, y)
             elif level[y][x] == '$':
@@ -68,13 +69,16 @@ def cut_sheet(sheet, columns, rows):
 
 
 """заставка в конце игры"""
-def game_over(screen):
+def show_game_over(screen, full_screen):
+    stepx, stepy = 0, 0
+    if full_screen:
+        stepx, stepy = STEP_SCREEN_X * 2, STEP_SCREEN_Y * 2
     text = "GAME OVER"
     font = pygame.font.Font(None, 130)
     string_rendered = font.render(text, 1, pygame.Color('red'))
     intro_rect = string_rendered.get_rect()
-    intro_rect.x = 300
-    intro_rect.y = 300
+    intro_rect.x = 270 + stepx
+    intro_rect.y = 300 + stepy
     screen.blit(string_rendered, intro_rect)
 
 
@@ -123,12 +127,29 @@ class Player(pygame.sprite.Sprite):
         self.rect.x = size_block * pos_x
         self.rect.y = size_block * pos_y
         self.count_money = 0
+        self.count_lifes = 3
 
         # индексы в списки с анимацией относительно направления движения игрока
         self.animation_right = [9, 10, 11]
         self.animation_left = [6, 7, 8]
         self.animation_up = [3, 4, 5]
         self.animation_down = [0, 1, 2]
+
+    # изменение количества денег у игрока
+    def update_count_money(self, count):
+        self.count_money += count
+
+    # получение количества денег у игрока
+    def get_count_money(self):
+        return self.count_money
+
+    # изменение количества жизней у игрока
+    def update_count_lifes(self, count):
+        self.count_lifes += count
+
+    # получение количества жизней у игрока
+    def get_count_lifes(self):
+        return self.count_lifes
 
     # для обновления координат объекта во время смены режима экрана
     def update_coords(self, step):
@@ -168,9 +189,9 @@ class Player(pygame.sprite.Sprite):
             self.rect = self.rect.move(-step[0], -step[1])
         if pygame.sprite.spritecollideany(self, ghost_sprites):  # если игрок сталкивается с призраком, то игра окончена
             self.rect = self.rect.move(-step[0], -step[1])
-            return True
+
         if pygame.sprite.spritecollide(self, money_sprites, True):  # если игрок сталкивается с призраком, то игра окончена
-            self.count_money += 100
+            self.count_money += 50
 
 
 """создание спрайта призрака"""
@@ -231,7 +252,7 @@ class Ghost(pygame.sprite.Sprite):
             self.step = (0, STEP_GHOST)
 
     # изменение положения призрака на поле
-    def update(self):
+    def update(self, timer):
         # флаг для работы выбора направления движения призрака,
         # если Folse значит направление выбрано, иначе продолжаем искать
         can = True
@@ -250,8 +271,13 @@ class Ghost(pygame.sprite.Sprite):
             # если призрак сталкивается с игроком, то игра окончена
             if pygame.sprite.spritecollideany(self, player_sprite):
                 self.rect = self.rect.move(-self.step[0], -self.step[1])
+
+                if (pygame.time.get_ticks() - timer.get_timer()) // 1000 > 0.5:
+                    timer.new_timer()
+                    player.update_count_money(-50)
+                    player.update_count_lifes(-1)
+
                 self.direction = None  # значит направление не подошло, повторяем все заново
-                return False
 
             #  проверяем не сталкивается ли призрак с другими призраками, если да, то проделываеем все также
             for sprite in pygame.sprite.spritecollide(self, ghost_sprites, False):
@@ -262,6 +288,20 @@ class Ghost(pygame.sprite.Sprite):
                 can = False  # значит направление выбрано
         return self.direction  # возвращаем направление движения
 
+
+"""класс таймера для отсчета времени, когда игрок касается призрака"""
+class Timer:
+    def __init__(self):
+        self.start_ticks = pygame.time.get_ticks()
+
+    def get_timer(self):
+        return self.start_ticks
+
+    def new_timer(self):
+        self.start_ticks = pygame.time.get_ticks()
+
+
+"""класс камеры для ослеживания положения игрока на поле"""
 class Camera:
     # зададим начальный сдвиг камеры
     def __init__(self):
@@ -368,9 +408,9 @@ class Bullet(pygame.sprite.Sprite):
 
 """создание спрайта денег"""
 class Money(pygame.sprite.Sprite):
-    def __init__(self, money_images, pos_x, pos_y):
+    def __init__(self, money_image, pos_x, pos_y):
         super().__init__(money_sprites, all_sprites)
-        self.image = random.choice(money_images)
+        self.image = money_image
         self.rect = self.image.get_rect()
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = pos_x + 10
@@ -382,12 +422,12 @@ class Money(pygame.sprite.Sprite):
 
 
 """функция проверяет можно ли делать в этой клетке карты деньги (если эта клетка - трава, то можно)"""
-def create_money(level, money_images, pos_x, pos_y, full_screen):
+def create_money(level, money_image, pos_x, pos_y, full_screen):
     if level[pos_y][pos_x] == '.':
         if full_screen:
-            Money(money_images, pos_x * size_block + STEP_SCREEN_X, pos_y * size_block + STEP_SCREEN_Y)
+            Money(money_image, pos_x * size_block + STEP_SCREEN_X, pos_y * size_block + STEP_SCREEN_Y)
         else:
-            Money(money_images, pos_x * size_block, pos_y * size_block)
+            Money(money_image, pos_x * size_block, pos_y * size_block)
 
 
 """разворачивает или сворачивает окно игры"""
@@ -446,23 +486,47 @@ def full_screen_mode(mode):
         return True  # возвращаем True, так как экран свернули
 
 
+"""рисование в углу окна количества денег и жизней"""
+def draw_results(screen, image_money, image_heart, count_hearts, full_screen):
+    stepx, stepy = 0, 0  # оступ, зависит от развернуто ли окно или нет
+    if full_screen:
+        stepx, stepy = STEP_SCREEN_X * 2.5, STEP_SCREEN_Y
+
+    # отрисовка полупрозрачного прямоугольника (в нем будет вся инфа)
+    pygame.gfxdraw.box(screen, pygame.Rect(WIDTH_SCREEN - 150 + stepx, 20 + stepy, 120, 70), (0, 0, 0, 130))
+    screen.blit(image_money, (WIDTH_SCREEN - 140 + stepx, 35 + stepy))  # отрисовка изображения купюры
+    step_heart = 0
+    for _ in range(count_hearts):
+        screen.blit(image_heart, (WIDTH_SCREEN - 140 + step_heart + stepx, 55 + stepy))  # отрисовка сердец
+        step_heart += 30
+
+    font = pygame.font.Font(None, 25)
+    string_rendered = font.render(str(player.get_count_money()), 1, pygame.Color(255, 255, 255))
+    intro_rect = string_rendered.get_rect()
+    intro_rect.x = WIDTH_SCREEN - 95 + stepx
+    intro_rect.y = 35 + stepy
+    screen.blit(string_rendered, intro_rect)  # отрисока количества денег игроока
+
+
 """основная функция"""
 def main():
     pygame.init()
-    size = WIDTH_SCREEN, HEIGHT_SCREEN
+
     screen = pygame.display.set_mode(size)
+    timer = Timer()
 
     step, move = None, "D"
 
     running = True  # флаг для основного цикла
     moving_player = False  # флаг для обозначения движется ли игрока
-    game_overing = False  # флаг для обозначения окончена ли игры
-    full_screen = False  # флаг для обозначения развернуто лт окно игры
-
+    game_playing = True  # флаг для обозначения окончена ли игры
+    full_screen = False  # флаг для обозначения развернуто ли окно игры
+    game_over = False
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+
 
             if event.type == pygame.KEYDOWN:
 
@@ -493,39 +557,41 @@ def main():
 
         screen.fill("#808080")
 
-        old_coords = player.get_coords()  # координаты игрока перед ходом
+        if game_playing:
 
-        for sprite in bullet_sprites:  # обновление координат всех пуль
-            sprite.update()
+            old_coords = player.get_coords()  # координаты игрока перед ходом
 
-        if moving_player:
-            if player.update(step):  # если игра окончена, то показываем заставку
-                game_overing = True
-            # передаем в метод анимации игрока список с изображениями(анимация сама) и направление движения
-            player.animation(frames_player, move)
+            for sprite in bullet_sprites:  # обновление координат всех пуль
+                sprite.update()
 
-            # координаты левого верхнего блока карты и правого нижнего блока
-            coords_block = [camera.get_coord_block(walls_sprites.sprites()[0]),
-                              camera.get_coord_block(walls_sprites.sprites()[-1])]
+            if moving_player:
+                player.update(step)
+                # передаем в метод анимации игрока список с изображениями(анимация сама) и направление движения
+                player.animation(frames_player, move)
 
-            # обновляем положение камеры, если выключен полноэкранный режим,
-            # передавая ей игрока, старые координаты игрока координаты блоков и смещение иг.
-            if not full_screen:
-                camera.update(player, old_coords, coords_block, step)
+                # координаты левого верхнего блока карты и правого нижнего блока
+                coords_block = [camera.get_coord_block(walls_sprites.sprites()[0]),
+                                  camera.get_coord_block(walls_sprites.sprites()[-1])]
 
-            for sprite in all_sprites:  # обновление координат всех спрайтов
-                camera.apply(sprite)
+                # обновляем положение камеры, если выключен полноэкранный режим,
+                # передавая ей игрока, старые координаты игрока координаты блоков и смещение иг.
+                if not full_screen:
+                    camera.update(player, old_coords, coords_block, step)
 
-        for sprite in ghost_sprites:  # обновление координат всех призраков
-            move_ghost = sprite.update()
-            if move_ghost == False:  # это означает, что призрак столкнулся с игроком, конец игры
-                game_overing = True
-            else:
+                for sprite in all_sprites:  # обновление координат всех спрайтов
+                    camera.apply(sprite)
+
+            for sprite in ghost_sprites:  # обновление координат всех призраков
+                move_ghost = sprite.update(timer)
                 sprite.animation(frames_ghost, move_ghost)  # анимация призрака
 
-        while len(money_sprites) < 5:
-            print(8)
-            create_money(level, money_images, random.randint(0, level_x), random.randint(0, level_y), full_screen)
+            while len(money_sprites) < MAX_COUNT_MONEY:
+                create_money(level, money_image, random.randint(0, level_x), random.randint(0, level_y), full_screen)
+
+            if player.get_count_lifes() == 0:
+                game_playing = False
+        else:
+            game_over = True
 
         # отрисовка всех объектов
         all_sprites.draw(screen)
@@ -533,18 +599,21 @@ def main():
         ghost_sprites.draw(screen)
         bullet_sprites.draw(screen)
 
-        if game_overing:  # если игра окончена
-            game_over(screen)
+        if game_over:
+            show_game_over(screen, full_screen)
+
+        draw_results(screen, money_image_result, heart_image, player.get_count_lifes(), full_screen)
 
         pygame.display.flip()
         clock.tick(FPS)
     pygame.quit()
 
 
+size = WIDTH_SCREEN, HEIGHT_SCREEN
+
 #  словарь с изображениями стены и травы
-blocks_images = {"wall": load_image("wall.png"),
-                 "wall_2": load_image("wall_4.webp"),
-                 "grass": load_image("grass.png")}
+blocks_images = {"wall": load_image("wall.png", (size_block, size_block), -1),
+                 "grass": load_image("grass.png", (size_block, size_block), -1)}
 
 # создание групп спрайтов
 all_sprites = pygame.sprite.Group()
@@ -558,9 +627,9 @@ money_sprites = pygame.sprite.Group()
 frames_player = cut_sheet(load_image("player.png", (120, 160), -1), 3, 4)  # список с анимацией игрока
 frames_ghost = cut_sheet(load_image("ghost.png", (110, 150), -1), 3, 4)  # список с анимацией призрака
 bullet_image = load_image("bullet.png", (10, 10), -1)  # загрузка изображения пули
-money_images = [load_image("money_50.jpg", (20, 10), -1),
-                load_image("money_100.jpg", (20, 10), -1),
-                load_image("money_500.jpg", (20, 10), -1)]
+money_image = load_image("money_50.jpg", (20, 10), -1)
+money_image_result = load_image("money_50.jpg", (35, 15), -1)
+heart_image = load_image("heart.png", (30, 30), -1)
 
 level = load_level("level_1.txt")
 # здесь получаем призраков и размеры поля в клетках
@@ -568,12 +637,12 @@ ghost, level_x, level_y = generate_level(level, frames_ghost[0])
 
 camera = Camera()  # создаем камеры
 player = Player(frames_player[0], 1, 1)  # создаем игрока
-while len(money_sprites) != 5:
-    create_money(level, money_images, random.randint(0, level_x), random.randint(0, level_y), False)
 
+while len(money_sprites) != MAX_COUNT_MONEY:
+    create_money(level, money_image, random.randint(0, level_x), random.randint(0, level_y), False)
 
 clock = pygame.time.Clock()
 FPS = 15
 
 if __name__ == "__main__":
-    main()
+    screensaver.screensaver_game()
