@@ -78,6 +78,13 @@ def game_over(screen):
     screen.blit(string_rendered, intro_rect)
 
 
+# определяем координаты пули и создаем ее
+def attack(move_attack, bullet_image, player_coords):
+    x = player_coords[0] + 15
+    y = player_coords[1] + 20
+    Bullet(bullet_image, x, y, move_attack)
+
+
 """создание спрайта стены"""
 class Wall(pygame.sprite.Sprite):
     def __init__(self, tile_type, pos_x, pos_y):
@@ -115,6 +122,7 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.rect.x = size_block * pos_x
         self.rect.y = size_block * pos_y
+        self.count_money = 0
 
         # индексы в списки с анимацией относительно направления движения игрока
         self.animation_right = [9, 10, 11]
@@ -161,6 +169,8 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollideany(self, ghost_sprites):  # если игрок сталкивается с призраком, то игра окончена
             self.rect = self.rect.move(-step[0], -step[1])
             return True
+        if pygame.sprite.spritecollide(self, money_sprites, True):  # если игрок сталкивается с призраком, то игра окончена
+            self.count_money += 100
 
 
 """создание спрайта призрака"""
@@ -276,8 +286,6 @@ class Camera:
 
             if coord_block[0][0] != 0:  # если координата х блока не равна 0, то делаем смещение для всех объектов
                 self.dx = old[0] - target.rect.x
-                # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
-                player.update((-step_player[0], -step_player[1]))
 
             elif coord_block[0][0] == 0:  # если координата х блока равна 0, то смщение не делаем
                 self.dx = 0
@@ -289,8 +297,6 @@ class Camera:
             # если координата х блока не равна (WIDTH_SCREEN - size_block), то делаем смещение для всех объектов
             if coord_block[1][0] != WIDTH_SCREEN - size_block:
                 self.dx = old[0] - target.rect.x
-                # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
-                player.update((-step_player[0], -step_player[1]))
 
             # если координата х блока равна (WIDTH_SCREEN - size_block), то смщение не делаем
             elif coord_block[1][0] == WIDTH_SCREEN - size_block:
@@ -302,8 +308,6 @@ class Camera:
 
             if coord_block[0][1] != 0:  # если координата у блока не равна 0, то делаем смещение для всех объектов
                 self.dy = old[1] - target.rect.y
-                # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
-                player.update((-step_player[0], -step_player[1]))
 
             elif coord_block[0][1] == 0:  # если координата у блока равна 0, то смщение не делаем
                 self.dy = 0
@@ -316,8 +320,6 @@ class Camera:
             # если координата у блока не равна (HEIGHT_SCREEN - size_block), то делаем смещение для всех объектов
             if coord_block[1][1] != HEIGHT_SCREEN - size_block:
                 self.dy = old[1] - target.rect.y
-                # возвращаем игрока на старые координаты, чтобы не было ускорения во время движения всех объектов
-                player.update((-step_player[0], -step_player[1]))
 
             # если координата у блока равна (HEIGHT_SCREEN - size_block), то смщение не делаем
             elif coord_block[1][1] == HEIGHT_SCREEN - size_block:
@@ -363,11 +365,85 @@ class Bullet(pygame.sprite.Sprite):
         if pygame.sprite.spritecollide(self, ghost_sprites, True):
             self.kill()
 
-# определяем координаты пули и создаем ее
-def attack(move_attack, bullet_image, player_coords):
-    x = player_coords[0] + 15
-    y = player_coords[1] + 20
-    Bullet(bullet_image, x, y, move_attack)
+
+"""создание спрайта денег"""
+class Money(pygame.sprite.Sprite):
+    def __init__(self, money_images, pos_x, pos_y):
+        super().__init__(money_sprites, all_sprites)
+        self.image = random.choice(money_images)
+        self.rect = self.image.get_rect()
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect.x = pos_x + 10
+        self.rect.y = pos_y + 15
+
+    # для обновления координат объекта во время смены режима экрана
+    def update_coords(self, step):
+        self.rect = self.rect.move(step[0], step[1])
+
+
+"""функция проверяет можно ли делать в этой клетке карты деньги (если эта клетка - трава, то можно)"""
+def create_money(level, money_images, pos_x, pos_y, full_screen):
+    if level[pos_y][pos_x] == '.':
+        if full_screen:
+            Money(money_images, pos_x * size_block + STEP_SCREEN_X, pos_y * size_block + STEP_SCREEN_Y)
+        else:
+            Money(money_images, pos_x * size_block, pos_y * size_block)
+
+
+"""разворачивает или сворачивает окно игры"""
+def full_screen_mode(mode):
+    #  сворачиваем экран
+    if mode:
+        display = (pygame.display.Info().current_w, pygame.display.Info().current_h)  # разрешение экрана пк
+        block_coords = camera.get_coord_block(walls_sprites.sprites()[-1])  # координаты самого правого нижнего блока
+        pygame.display.set_mode((WIDTH_SCREEN, HEIGHT_SCREEN))  # меняем размер окна
+
+        # если игрок находился в левой части карты при развернутом экране и коордю. х < WIDTH_SCREEN // 2
+        # (т.е. меньше половины свернутого экрана), тогда изменение по х = 0
+        if WIDTH_SCREEN // 2 > player.rect.x and player.rect.x < display[0] // 2:
+            dx = 0
+
+        # если игрок находился в правой части карты при развернутом экране и
+        # расстояние display[0] - player.rect.x (т.е. расстояние от игрока до правой стены карты) < WIDTH_SCREEN // 2
+        elif WIDTH_SCREEN // 2 > display[0] - player.rect.x and player.rect.x > display[0] // 2:
+            # из коорд. крайнего блока вычитаем оступ и ширину экраана и прибавляем размер блока
+            dx = block_coords[0] - STEP_SCREEN_X - WIDTH_SCREEN + size_block
+
+        # если игрок находился в левой части карты при развернутом экране и коордю. х > WIDTH_SCREEN // 2
+        # (т.е. меньше половины свернутого экрана), тогда изменение по х = 0
+        elif player.rect.x < display[0] // 2:
+            # из коорд. х игрока вычитаем половину свернутого экрана, а дальше делим
+            # и умножаем на size_block, чтобы dx нацело делилось на size_block
+            dx = (player.rect.x - WIDTH_SCREEN // 2) // size_block * size_block
+
+        # если игрок находился в правой части карты при развернутом экране и расстояние
+        # display[0] - player.rect.x (т.е. расстояние от игрока до правой стены карты) > WIDTH_SCREEN // 2
+        else:
+            # из коорд.крайнего блока ширину экрана, а дальше делим
+            # и умножаем на size_block, чтобы dx нацело делилось на size_block
+            dx = (block_coords[0] - WIDTH_SCREEN) // size_block * size_block - size_block
+
+        # дальше по такому же принципу только с координами y
+        if HEIGHT_SCREEN // 2 > player.rect.y and player.rect.y < display[1] // 2:
+            dy = 0
+        elif HEIGHT_SCREEN // 2 > display[1] - player.rect.y and player.rect.y > display[1] // 2:
+            dy = block_coords[1] - STEP_SCREEN_Y - HEIGHT_SCREEN + size_block
+        elif player.rect.y < display[1] // 2:
+            dy = 0
+        else:
+            dy = (block_coords[1] - HEIGHT_SCREEN) // size_block * size_block - size_block
+
+        for sprite in all_sprites:
+            sprite.update_coords((-(dx + STEP_SCREEN_X), -(dy + STEP_SCREEN_Y)))  # передаем в метод спрайта смещение
+        return False  # возвращаем False, так как экран свернули
+
+    # разворачиваем экран
+    else:
+        pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # меняем размер окна
+        coords_1 = camera.get_coord_block(all_sprites.sprites()[0])  # коорд. самого левого вернего блока
+        for sprite in all_sprites:
+            sprite.update_coords((abs(coords_1[0]) + STEP_SCREEN_X, abs(coords_1[1]) + STEP_SCREEN_Y))
+        return True  # возвращаем True, так как экран свернули
 
 
 """основная функция"""
@@ -379,9 +455,9 @@ def main():
     step, move = None, "D"
 
     running = True  # флаг для основного цикла
-    moving_player = False  # флаг для движения игрока
-    game_overing = False  # флаг для окончания игры
-    full_screen = False
+    moving_player = False  # флаг для обозначения движется ли игрока
+    game_overing = False  # флаг для обозначения окончена ли игры
+    full_screen = False  # флаг для обозначения развернуто лт окно игры
 
     while running:
         for event in pygame.event.get():
@@ -394,16 +470,7 @@ def main():
                     attack(move, bullet_image, player.get_coords())  # запускаем функцию по созданию пули
 
                 if event.key == pygame.K_ESCAPE:
-                    if full_screen:
-                        pygame.display.set_mode(size)
-                        full_screen = False
-                        for sprite in all_sprites:
-                            sprite.update_coords((-110, -30))
-                    else:
-                        pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-                        full_screen = True
-                        for sprite in all_sprites:
-                            sprite.update_coords((110, 30))
+                    full_screen = full_screen_mode(full_screen)  # передаем включен ли full_screen режим
 
                 if event.key == pygame.K_RIGHT:
                     step, move = (STEP_PLAYER, 0), "R"
@@ -449,15 +516,16 @@ def main():
             for sprite in all_sprites:  # обновление координат всех спрайтов
                 camera.apply(sprite)
 
-            for sprite in ghost_sprites:  # обновление координат всех призраков
-                camera.apply(sprite)
-
         for sprite in ghost_sprites:  # обновление координат всех призраков
             move_ghost = sprite.update()
             if move_ghost == False:  # это означает, что призрак столкнулся с игроком, конец игры
                 game_overing = True
             else:
                 sprite.animation(frames_ghost, move_ghost)  # анимация призрака
+
+        while len(money_sprites) < 5:
+            print(8)
+            create_money(level, money_images, random.randint(0, level_x), random.randint(0, level_y), full_screen)
 
         # отрисовка всех объектов
         all_sprites.draw(screen)
@@ -485,14 +553,24 @@ walls_sprites = pygame.sprite.Group()
 ghost_sprites = pygame.sprite.Group()
 player_sprite = pygame.sprite.Group()
 bullet_sprites = pygame.sprite.Group()
+money_sprites = pygame.sprite.Group()
 
 frames_player = cut_sheet(load_image("player.png", (120, 160), -1), 3, 4)  # список с анимацией игрока
 frames_ghost = cut_sheet(load_image("ghost.png", (110, 150), -1), 3, 4)  # список с анимацией призрака
 bullet_image = load_image("bullet.png", (10, 10), -1)  # загрузка изображения пули
+money_images = [load_image("money_50.jpg", (20, 10), -1),
+                load_image("money_100.jpg", (20, 10), -1),
+                load_image("money_500.jpg", (20, 10), -1)]
+
+level = load_level("level_1.txt")
 # здесь получаем призраков и размеры поля в клетках
-ghost, level_x, level_y = generate_level(load_level("level_1.txt"), frames_ghost[0])
+ghost, level_x, level_y = generate_level(level, frames_ghost[0])
+
 camera = Camera()  # создаем камеры
 player = Player(frames_player[0], 1, 1)  # создаем игрока
+while len(money_sprites) != 5:
+    create_money(level, money_images, random.randint(0, level_x), random.randint(0, level_y), False)
+
 
 clock = pygame.time.Clock()
 FPS = 15
