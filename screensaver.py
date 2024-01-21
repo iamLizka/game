@@ -6,7 +6,6 @@ from const import *
 
 """класс, отвечающий за отрисовку окна с управлением"""
 def show_control():
-    pygame.init()
     screen = pygame.display.set_mode(size)
 
     button_back = Button(30, 30, 120, 45, "Назад", 50, 40)  # создание кнопки
@@ -79,7 +78,6 @@ def show_control():
 
 """класс, отвечающий за отрисовку окна с целью"""
 def show_target():
-    pygame.init()
     screen = pygame.display.set_mode(size)
 
     font = pygame.font.Font(None, 30)
@@ -128,8 +126,10 @@ def show_target():
 
 """основная функция"""
 def screensaver_game():
-    pygame.init()
     screen = pygame.display.set_mode(size)
+
+    pygame.mixer.music.play(-1)
+    pygame.mixer.music.set_volume(0.3)
 
     # создание кнопок
     button_play = Button(350, 270, 410, 80, "Играть", 470, 290)
@@ -169,6 +169,7 @@ def screensaver_game():
 
         if game_starting:  # если нажата кпопка играть
             running = False
+            pygame.mixer.pause()
             start.main()
         elif control:  # если нажата кнопка управление
             running = False
@@ -219,5 +220,7 @@ button_esc_image = load_image("button_esc_image.jpg", (60, 60), -1)
 button_r_image = load_image("button_r_image.jpg", (60, 60), -1)
 button_ctrl_image = load_image("button_ctrl_image.jpg", (90, 60), -1)
 button_c_image = load_image("button_c_image.jpg", (60, 60), -1)
+
+pygame.init()
 
 
