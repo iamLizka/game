@@ -5,10 +5,10 @@ import random
 import pygame.gfxdraw
 import _sqlite3
 
-
 import screensaver
 from const import *
 from screensaver import *
+
 
 """загрузка изображения"""
 def load_image(name, size=None, colorkey=None):
