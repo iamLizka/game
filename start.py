@@ -44,7 +44,7 @@ def load_level(filename):
 
 """рисование всех предметов на карте уровня"""
 def generate_level(level):
-    x, y = None, None
+    player, x, y = None, None, None
     for y in range(len(level)):
         for x in range(len(level[y])):
             if level[y][x] == '#':
@@ -53,8 +53,11 @@ def generate_level(level):
                 Grass('grass', x, y)
             elif level[y][x] == "!":
                 Portal('portal', x, y)
+            elif level[y][x] == "@":
+                Grass('grass', x, y)
+                player = Player(frames_player[0], x, y)
     # возвращаем размер поля в клетках
-    return x, y
+    return player, x, y
 
 
 """разрезание листа с анимацией игрока"""
@@ -75,10 +78,10 @@ def show_game_over(screen, full_screen, player_won):
     if full_screen:  # если включен полноэкранный режим, то делаем отступ
         stepx, stepy = STEP_SCREEN_X * 2, STEP_SCREEN_Y * 2
     if player_won:
-        text = "     YOU WON"
+        text = "  VICTORY"
     else:
-        text = "  GAME OVER"
-    font = pygame.font.Font(None, 130)
+        text = "GAME OVER"
+    font = pygame.font.SysFont("comicsansms", 110)
     string_rendered = font.render(text, 1, pygame.Color('red'))
     intro_rect = string_rendered.get_rect()
     intro_rect.x = 240 + stepx
@@ -91,12 +94,13 @@ def show_numlevel(screen, full_screen, text):
     stepx, stepy = 0, 0
     if full_screen:  # если включен полноэкранный режим, то делаем отступ
         stepx, stepy = STEP_SCREEN_X * 2, STEP_SCREEN_Y * 2
-    font = pygame.font.Font(None, 150)
-    string_rendered = font.render(text, 1, pygame.Color(60, 60, 60))
+    font = pygame.font.SysFont("comicsansms", 90)
+    string_rendered = font.render(text, 1, pygame.Color(COLOR_FONT))
     intro_rect = string_rendered.get_rect()
-    intro_rect.x = 360 + stepx
+    intro_rect.x = 390 + stepx
     intro_rect.y = 310 + stepy
     screen.blit(string_rendered, intro_rect)
+
 
 """определяем координаты пули и создаем ее"""
 def attack(move_attack, bullet_image, player_coords):
@@ -163,7 +167,7 @@ class Player(pygame.sprite.Sprite):
         self.count_lifes = 3
         self.count_bullets = 10
 
-        # индексы в списки с анимацией относительно направления движения игрока
+        # индексы в списке с анимацией относительно направления движения игрока
         self.animation_right = [9, 10, 11]
         self.animation_left = [6, 7, 8]
         self.animation_up = [3, 4, 5]
@@ -198,7 +202,6 @@ class Player(pygame.sprite.Sprite):
         if fullscreen:
             return self.rect.x // size_block - STEP_SCREEN_X, self.rect.y // size_block - STEP_SCREEN_Y
         return self.rect.x // size_block, self.rect.y // size_block
-
 
     # для обновления координат объекта во время смены режима экрана
     def update_coords(self, step):
@@ -341,12 +344,6 @@ class Ghost(pygame.sprite.Sprite):
                 self.rect = self.rect.move(-self.step[0], -self.step[1])
                 self.direction = None  # значит направление не подошло, повторяем все заново
 
-            # если призрак попадает в портал, не даем ему пройти его
-            if pygame.sprite.spritecollideany(self, portal_sprite):
-                if self.rect.x - STEP_PLAYER == portal_sprite.sprites()[0].rect.x and self.rect.y == \
-                        portal_sprite.sprites()[0].rect.y:
-                    self.rect = self.rect.move(-self.step[0], -self.step[1])
-
             # если призрак сталкивается с игроком, перемещаем его обратно
             if pygame.sprite.spritecollideany(self, player_sprite):
                 self.rect = self.rect.move(-self.step[0], -self.step[1])
@@ -375,9 +372,11 @@ class Timer:
     def __init__(self):
         self.start_ticks = pygame.time.get_ticks()
 
+    # получение текущего времени на таймере
     def get_timer(self):
         return self.start_ticks
 
+    # обнуление таймера
     def new_timer(self):
         self.start_ticks = pygame.time.get_ticks()
 
@@ -400,51 +399,39 @@ class Camera:
 
     # позиционируем камеру относительно движения объекта
     def update(self, target, old, coord_block, step_player):
+        self.dx, self.dy = 0, 0  # обнуляем смешение
 
         # если игрок находиться в левой части экрана и движеться влево,
         # то проверяем где находится блок стены с координатами (0, 0)
-        if target.rect.x <= 250 and step_player[0] < 0:
+        if target.rect.x <= 300 and step_player[0] < 0:
 
             if coord_block[0][0] != 0:  # если координата х блока не равна 0, то делаем смещение для всех объектов
                 self.dx = old[0] - target.rect.x
 
-            elif coord_block[0][0] == 0:  # если координата х блока равна 0, то смещение не делаем
-                self.dx = 0
-
         # если игрок находиться в правой части экрана и движеться вправо,
         # то проверяем где находится блок стены с координатами (WIDTH_SCREEN - size_block, HEIGHT_SCREEN - size_block),
         # т.е. самого правого нижнего блока
-        elif target.rect.x >= WIDTH_SCREEN - 250 and step_player[0] > 0:
+        elif target.rect.x >= WIDTH_SCREEN - 300 and step_player[0] > 0:
             # если координата х блока не равна (WIDTH_SCREEN - size_block), то делаем смещение для всех объектов
             if coord_block[1][0] != WIDTH_SCREEN - size_block:
                 self.dx = old[0] - target.rect.x
 
-            # если координата х блока равна (WIDTH_SCREEN - size_block), то смещение не делаем
-            elif coord_block[1][0] == WIDTH_SCREEN - size_block:
-                self.dx = 0
-
         # если игрок находиться в верхней части экрана и движеться вверх,
         # то проверяем где находится блок стены с координатами (0, 0)
-        elif target.rect.y <= 200 and step_player[1] < 0:
+        elif target.rect.y <= 250 and step_player[1] < 0:
 
             if coord_block[0][1] != 0:  # если координата у блока не равна 0, то делаем смещение для всех объектов
                 self.dy = old[1] - target.rect.y
 
-            elif coord_block[0][1] == 0:  # если координата у блока равна 0, то смещение не делаем
-                self.dy = 0
-
         # если игрок находиться в нижней части экрана и движеться вниз,
         # то проверяем где находится блок стены с координатами (WIDTH_SCREEN - size_block, HEIGHT_SCREEN - size_block),
         # т.е. самого правого нижнего блока
-        elif target.rect.y >= HEIGHT_SCREEN - 200 and step_player[1] > 0:
+        elif target.rect.y >= HEIGHT_SCREEN - 250 and step_player[1] > 0:
 
             # если координата у блока не равна (HEIGHT_SCREEN - size_block), то делаем смещение для всех объектов
             if coord_block[1][1] != HEIGHT_SCREEN - size_block:
                 self.dy = old[1] - target.rect.y
 
-            # если координата у блока равна (HEIGHT_SCREEN - size_block), то смещение не делаем
-            elif coord_block[1][1] == HEIGHT_SCREEN - size_block:
-                self.dy = 0
         else:
             self.dx = 0
             self.dy = 0
@@ -516,16 +503,14 @@ def create_money(level, money_image, pos_x, pos_y, full_screen):
         dx, dy = screen_offset()
     if level[pos_y][pos_x] == '.':
         # координаты игрока в клетках
-        pos_x_player = (player.get_coords()[0] + dx) // size_block
-        pos_y_player = (player.get_coords()[1] + dy) // size_block
+        pos_player = player.get_coords_in_blocks(full_screen)
         # проверяем не стоит ли на этой клетке игрок (+ 1 для того, чтобы проверить ситуацию, где игрок на двух клетках стоит)
-        if pos_x not in [pos_x_player, pos_x_player + 1] or pos_y not in [pos_y_player, pos_y_player + 1]:
+        if (pos_x, pos_y) != [pos_player[0], pos_player[1]]:
         # перебираем все деньги и проверяем совпадает ли их координата с нынешней
             for money in money_sprites:
                 if (pos_x, pos_y) == money.get_coords_in_blocks(full_screen):
                     return False
         Money(money_image, pos_x * size_block - dx, pos_y * size_block - dy)
-
 
 
 """функция проверяет можно ли создать призрака в этой клетке карты (если эта клетка - трава, то можно)"""
@@ -537,12 +522,17 @@ def create_ghost(level, ghost_image, pos_x, pos_y, full_screen):
     if level[pos_y][pos_x] == '.':
         # координаты игрока в клетках
         pos_player = player.get_coords_in_blocks(full_screen)
-        # проверяем не стоит ли на этой клетке игрок (+ 1 для того, чтобы проверить ситуацию, где игрок на двух клетках стоит)
-        if pos_x not in [pos_player[0], pos_player[0] + 1] or pos_y not in [pos_player[1], pos_player[1] + 1]:
+        # проверяем не стоит ли на этой клетке игрок и проверяем на 1 клетку вокруг него
+        if (pos_x, pos_y) not in [(pos_player[0], pos_player[1]), (pos_player[0] + 1, pos_player[1]),
+                                      (pos_player[0] - 1, pos_player[1]), (pos_player[0], pos_player[1] + 1),
+                                      (pos_player[0], pos_player[1] - 1)]:
             # перебираем всех уже существующих призраков и проверяем совпадает ли их координата с нынешней
             for ghost in ghost_sprites:
                 ghost_x_y = ghost.get_coords_in_blocks(full_screen)
-                if (pos_x, pos_y) == (ghost_x_y[0], ghost_x_y[1]) or (pos_x, pos_y) == (ghost_x_y[0] + 1, ghost_x_y[1] + 1):
+                #  проверяем есть ли другие призраки в нашем блоке и блока сверху, снизу, справа, слева
+                if (pos_x, pos_y) in [(ghost_x_y[0], ghost_x_y[1]), (ghost_x_y[0] + 1, ghost_x_y[1]),
+                                      (ghost_x_y[0] - 1, ghost_x_y[1]), (ghost_x_y[0], ghost_x_y[1] + 1),
+                                      (ghost_x_y[0], ghost_x_y[1] - 1)]:
                     return False
             Ghost(ghost_image, pos_x * size_block - dx, pos_y * size_block - dy)
 
@@ -575,7 +565,6 @@ def full_screen_mode(mode):
             dx = (player.rect.x - WIDTH_SCREEN // 2) // size_block * size_block
 
         # если игрок находился в правой части карты при развернутом экране и расстояние
-        # display[0] - player.rect.x (т.е. расстояние от игрока до правой стены карты) > WIDTH_SCREEN // 2
         else:
             # из коорд.крайнего блока ширину экрана, а дальше делим
             # и умножаем на size_block, чтобы dx нацело делилось на size_block
@@ -626,7 +615,7 @@ def draw_results(screen, image_money, image_heart, count_hearts, max_count_money
     intro_rect = string_rendered.get_rect()
     intro_rect.x = WIDTH_SCREEN - 125 + stepx
     intro_rect.y = 63 + stepy
-    screen.blit(string_rendered, intro_rect)  # отрисока количества патронов игроока
+    screen.blit(string_rendered, intro_rect)  # отрисока количества патрон игроока
 
     step_heart = 0
     for _ in range(count_hearts):
@@ -636,16 +625,14 @@ def draw_results(screen, image_money, image_heart, count_hearts, max_count_money
 
 """создание кнопок во время паузы"""
 def create_button_pause(full_screen, text):
-    # данные для кнопок ( размеры, коордиинаты)
-    list_data_buttons = {"Продолжить": [WIDTH_SCREEN // 2 - 180, HEIGHT_SCREEN // 2 + 20, 220, 60,
-                                                          WIDTH_SCREEN // 2 - 165, HEIGHT_SCREEN // 2 + 35],
-                         "Выход": [WIDTH_SCREEN // 2 + 70, HEIGHT_SCREEN // 2 + 20, 140, 60,
-                                                          WIDTH_SCREEN // 2 + 85, HEIGHT_SCREEN // 2 + 35]}
+    # данные для кнопок ( x, y, ширинаб высота, x и y для текста)
+    list_data_buttons = {"Продолжить": [380, 380, 225, 60, 385, 385],
+                         "Выход": [630, 380, 140, 60, 645, 385]}
     stepx, stepy = 0, 0  # оступ, зависит от развернуто ли окно или нет
     if full_screen:
         stepx, stepy = STEP_SCREEN_X * 1.9, STEP_SCREEN_Y
     but = list_data_buttons[text]
-    return screensaver.Button(but[0] + stepx, but[1] + stepy, but[2], but[3], text,  but[4] + stepx, but[5] + stepy)
+    return screensaver.Button(but[0] + stepx, but[1] + stepy, but[2], but[3], (text,  but[4] + stepx, but[5] + stepy))
 
 
 """отрисовка фона во время паузы (полупрозрачный прямоугольник)"""
@@ -661,13 +648,14 @@ def pause_in_game(screen, full_screen):
 def update_all():
     global level, level_x, camera, level_y, player
 
-    with open("data/number_last_level.txt", "r", encoding='utf8') as f:  # открываем файл с номер текущего уровня
+    with open("data/number_last_level.txt", "r", encoding='utf8') as f:  # открываем файл с номером текущего уровня
         num_level = int(f.read())
 
     # получаем из таблицы по номеру уровня имя файла, кол-ло призраков на поле и денег, которые игрок должен собрать
     db = _sqlite3.connect('data/data_levels.db')
     sql = db.cursor()
     data = sql.execute(f"""SELECT level_name, count_ghost, count_money FROM Game WHERE id == {num_level}""").fetchone()
+    # имя файла, кол-во призраков на поле, кол-во денег, котое надо собрать
     level_name, max_count_ghost, need_max_count_money = data[0], data[1], data[2]
     db.close()
 
@@ -675,9 +663,8 @@ def update_all():
         sprite.kill()
 
     level = load_level(level_name)  # загружаем уровень
-    level_x, level_y = generate_level(level)  # получаем размеры поля
+    player, level_x, level_y = generate_level(level)  # получаем размеры поля и игрока
     camera = Camera()  # создаем камеру для слежки за игроком
-    player = Player(frames_player[0], 1, 1)  # создаем игрока
 
     # создаем призраков и деньги
     while len(money_sprites) != MAX_COUNT_MONEY:
@@ -763,8 +750,10 @@ def update_level():
         # проверяем есть ли в бд следующий уровень, если да - обновляем, если нет - оставляем текущий
         db = _sqlite3.connect('data/data_levels.db')
         sql = db.cursor()
-        data = sql.execute(f"""SELECT level_name FROM Game WHERE id == {int(num_level) + 1}""").fetchone()
-        if data:
+        sql.execute(f"""UPDATE Game SET passed = 'yes' WHERE id = {int(num_level)}""")  # отмечаем в бд, что уровень пройден
+        data = sql.execute(f"""SELECT level_name FROM Game WHERE id == {int(num_level) + 1}""").fetchone()  # получаем следующий
+        db.commit()
+        if data:  # если есть следующий уровень, то удаляем текущий из файла
             f.truncate(0)
             f.seek(0)
             f.write(str(int(num_level) + 1))  # обновляем файл, где записан текущий уровень
@@ -772,7 +761,12 @@ def update_level():
 
 """основная функция"""
 def main():
-    pygame.mixer.music.set_volume(0.7)  # устанавливаем громкость
+    pygame.mixer.music.set_volume(screensaver.volume_game)  # устанавливаем громкость
+    sound_game_over.set_volume(screensaver.volume_game)
+    sound_win.set_volume(screensaver.volume_game)
+    sound_bullet.set_volume(screensaver.volume_game)
+    sound_wound.set_volume(screensaver.volume_game)
+
     screen = pygame.display.set_mode(size)
 
     timer = Timer()  # таймер для отслеживания времени, при столкновении игрока и призрака
@@ -804,11 +798,11 @@ def main():
                 if button_continue.pressed(event.pos):
                     game_playing = True  # продолжаем игру
                     pause = False
-                    pygame.mixer.music.set_volume(0.7)  # увеличиваем громкость
+                    pygame.mixer.music.set_volume(screensaver.volume_menu_pause)  # увеличиваем громкость
                 elif button_back.pressed(event.pos):
                     pause = False
                     back = True  # выходим из игры
-                    pygame.mixer.music.set_volume(0.3)  # уменьшаем громкость
+                    pygame.mixer.music.set_volume(screensaver.volume_menu_pause)  # уменьшаем громкость
 
 
             if event.type == pygame.KEYDOWN:
@@ -817,7 +811,7 @@ def main():
                     attack(move, bullet_image, player.get_coords())  # запускаем функцию по созданию пули
 
                 if event.key == pygame.K_ESCAPE and not game_over:  # включение паузы
-                    pygame.mixer.music.set_volume(0.3)  # уменьшаем громкость
+                    pygame.mixer.music.set_volume(screensaver.volume_menu_pause)  # уменьшаем громкость
                     game_playing = False  # останавливаем игру
                     pause = True  # вклучаем паузу
                     button_continue = create_button_pause(full_screen, "Продолжить")  # создание кнопок
@@ -848,7 +842,6 @@ def main():
                         or event.key == pygame.K_UP or event.key == pygame.K_DOWN:
                     moving_player = False
                     player.change_image(frames_player[0])
-
 
         screen.fill("#808080")
 
@@ -886,8 +879,6 @@ def main():
                 for sprite in all_sprites:  # обновление координат всех спрайтов
                     camera.apply(sprite)
 
-
-
             # следим за кол-вом денег и призраков на поле, если что создаем новые
             while len(money_sprites) < MAX_COUNT_MONEY:
                 create_money(level, money_image, random.randint(0, level_x), random.randint(0, level_y), full_screen)
@@ -918,10 +909,10 @@ def main():
 
         if pause:  # если пауза, то отрисовываем все кнопки
             pause_in_game(screen, full_screen)  # рисует полупрозрачный прямоугольник под кнопками
-            button_continue.draw_button(screen, True)  # отвечает за продолжение игры
-            button_continue.write(screen, 45)
-            button_back.draw_button(screen, True)  # отвечает за выход
-            button_back.write(screen, 45)
+            button_continue.draw_button(screen, blocks_images["wall"], True)  # отвечает за продолжение игры
+            button_continue.write(screen, 35)
+            button_back.draw_button(screen, blocks_images["wall"], True)  # отвечает за выход
+            button_back.write(screen, 35)
 
         elif game_over:  # надпись о конце игры
             if (pygame.time.get_ticks() - timer_game_over_show_level.get_timer()) // 1000 > 2:
@@ -934,7 +925,6 @@ def main():
                 showing_level = False  # если сек прошла убираем надпись с уровнем
             else:
                 show_numlevel(screen, full_screen, f"LEVEL {num_level}")
-
 
         pygame.display.flip()
         clock.tick(FPS)
@@ -964,13 +954,19 @@ portal_sprite = pygame.sprite.Group()
 
 frames_player = cut_sheet(load_image("player.png", (120, 160), -1), 3, 4)  # список с анимацией игрока
 frames_ghost = cut_sheet(load_image("ghost.png", (110, 150), -1), 3, 4)  # список с анимацией призрака
-bullet_image = load_image("bullet.png", (10, 10), -1)  # загрузка изображения пули
-bullet_image_in_rect = load_image("bullet.png", (30, 30), -1)  # загрузка изображения пули
+
+# загузка изображений
+bullet_image = load_image("bullet.png", (10, 10), -1)
+bullet_image_in_rect = load_image("bullet.png", (30, 30), -1)
 money_image = load_image("money_50.jpg", (20, 10), -1)
 money_image_result = load_image("money_50.jpg", (35, 15), -1)
 heart_image = load_image("heart.png", (30, 30), -1)
 
 pygame.init()
+pygame.display.set_caption(NAME_GAME)  # изменение названия игры
+icon = pygame.image.load("data\icon.png")
+pygame.display.set_icon(icon)  # изменение иконки игры
+
 #  загрузка музыки и звуков
 pygame.mixer.music.load("data\music\music_fon.mp3")
 sound_game_over = pygame.mixer.Sound("data\music\music_gameover.mp3")
