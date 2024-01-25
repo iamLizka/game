@@ -301,7 +301,8 @@ class ButtonLevel(pygame.sprite.Sprite):
 
     # нажатие кнопки
     def pressed(self, mouse):
-        if self.rect.x <= mouse[0] <= self.rect.x + self.rect.w and self.rect.y <= mouse[1] <= self.rect.y + self.rect.h:
+        if self.rect.x <= mouse[0] <= self.rect.x + self.rect.w and\
+                self.rect.y <= mouse[1] <= self.rect.y + self.rect.h:
             # если кнопка была нажата кнопка с пройденным уровнем, то перезаписываем нынешний уровень в файле
             if self.num_level <= int(self.current_level):
                 with open("data/number_last_level.txt", "w", encoding='utf8') as f:

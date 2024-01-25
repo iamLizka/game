@@ -504,7 +504,8 @@ def create_money(level, money_image, pos_x, pos_y, full_screen):
     if level[pos_y][pos_x] == '.':
         # координаты игрока в клетках
         pos_player = player.get_coords_in_blocks(full_screen)
-        # проверяем не стоит ли на этой клетке игрок (+ 1 для того, чтобы проверить ситуацию, где игрок на двух клетках стоит)
+        # проверяем не стоит ли на этой клетке игрок
+        # (+ 1 для того, чтобы проверить ситуацию, где игрок на двух клетках стоит)
         if (pos_x, pos_y) != [pos_player[0], pos_player[1]]:
         # перебираем все деньги и проверяем совпадает ли их координата с нынешней
             for money in money_sprites:
@@ -537,9 +538,9 @@ def create_ghost(level, ghost_image, pos_x, pos_y, full_screen):
             Ghost(ghost_image, pos_x * size_block - dx, pos_y * size_block - dy)
 
 
-
 """разворачивает или сворачивает окно игры"""
-def full_screen_mode(mode):
+def full_screen_mode(mode, levelx, levely):
+    global STEP_SCREEN_X, STEP_SCREEN_Y
     #  сворачиваем экран
     if mode:
         display = (pygame.display.Info().current_w, pygame.display.Info().current_h)  # разрешение экрана пк
@@ -587,10 +588,15 @@ def full_screen_mode(mode):
     # разворачиваем экран
     else:
         pygame.display.set_mode((0, 0), pygame.FULLSCREEN)  # меняем размер окна
+        x = pygame.display.Info().current_w  # ширина развернутого экрана
+        y = pygame.display.Info().current_h  # высота развернутого экрана
+        # отступ, чтобы карта была поцентру (вычитаем из развернутого экрана размер карты и делим на 2)
+        STEP_SCREEN_X = (x - (levelx + 1) * size_block) // 2  # levelx + 1, тк отчет с 0
+        STEP_SCREEN_Y = (y - (levely + 1) * size_block) // 2
         coords_1 = camera.get_coord_block(all_sprites.sprites()[0])  # коорд. самого левого вернего блока
         for sprite in all_sprites:
             sprite.update_coords((abs(coords_1[0]) + STEP_SCREEN_X, abs(coords_1[1]) + STEP_SCREEN_Y))
-        return True  # возвращаем True, так как экран свернули
+        return True  # возвращаем True, так как экран развернули
 
 
 """рисование в углу окна количества денег, жизней и патрон"""
@@ -672,7 +678,7 @@ def update_all():
     while len(ghost_sprites) != max_count_ghost:
         create_ghost(level, frames_ghost[0], random.randint(0, level_x), random.randint(0, level_y), False)
 
-    return max_count_ghost, need_max_count_money, num_level
+    return max_count_ghost, need_max_count_money, num_level, level_x, level_y
 
 
 """если игрок находится не ровно на блоке, а посередине и при этом пытаеся двигаться, но ему мешает этот блок"""
@@ -750,8 +756,9 @@ def update_level():
         # проверяем есть ли в бд следующий уровень, если да - обновляем, если нет - оставляем текущий
         db = _sqlite3.connect('data/data_levels.db')
         sql = db.cursor()
-        sql.execute(f"""UPDATE Game SET passed = 'yes' WHERE id = {int(num_level)}""")  # отмечаем в бд, что уровень пройден
-        data = sql.execute(f"""SELECT level_name FROM Game WHERE id == {int(num_level) + 1}""").fetchone()  # получаем следующий
+        # отмечаем в бд, что уровень пройден и получаем следующий
+        sql.execute(f"""UPDATE Game SET passed = 'yes' WHERE id = {int(num_level)}""")
+        data = sql.execute(f"""SELECT level_name FROM Game WHERE id == {int(num_level) + 1}""").fetchone()
         db.commit()
         if data:  # если есть следующий уровень, то удаляем текущий из файла
             f.truncate(0)
@@ -761,6 +768,7 @@ def update_level():
 
 """основная функция"""
 def main():
+    pygame.init()
     pygame.mixer.music.set_volume(screensaver.volume_game)  # устанавливаем громкость
     sound_game_over.set_volume(screensaver.volume_game)
     sound_win.set_volume(screensaver.volume_game)
@@ -773,8 +781,8 @@ def main():
     timer_bullets = Timer()  # таймер для пополнения патронов
     timer_game_over_show_level = Timer()  # таймер для отрисовка надписи в конце игры и уровня в начале
 
-    # получаем кол-во прираков на поле, сколько денег нужно собрать и номер уровня
-    max_count_ghost, necessary_count_money, num_level = update_all()
+    # получаем кол-во прираков на поле, сколько денег нужно собрать, номер уровня и размеры поля
+    max_count_ghost, necessary_count_money, num_level, levelx, levely = update_all()
 
     button_continue, button_back = None, None  # кнопки продолжения и выхода во время паузы
     step, move = None, "D"  # шаг и направление (направление по умолчанию значит куда полетит пуля в самом начале игры)
@@ -804,7 +812,6 @@ def main():
                     back = True  # выходим из игры
                     pygame.mixer.music.set_volume(screensaver.volume_menu_pause)  # уменьшаем громкость
 
-
             if event.type == pygame.KEYDOWN:
 
                 if event.key == pygame.K_r and game_playing:
@@ -818,7 +825,7 @@ def main():
                     button_back = create_button_pause(full_screen, "Выход")
 
                 if pygame.key.get_pressed()[pygame.K_LCTRL] and pygame.key.get_pressed()[pygame.K_c]:
-                    full_screen = full_screen_mode(full_screen)  # передаем включен ли full_screen режим
+                    full_screen = full_screen_mode(full_screen, levelx, levely)  # передаем включен ли full_screen режим
                     if pause:
                         # заново создаем кнопки, потому что при вкл/выкл полноэкранного режима кнопки съехали
                         button_continue = create_button_pause(full_screen, "Продолжить")
@@ -858,12 +865,14 @@ def main():
 
             if moving_player:
                 if player.update(step, necessary_count_money, timer) == "win":  # значит игрок выиграл
-                    timer_game_over_show_level = Timer()  # обнуляем таймер, чтобы пошел отсчет сколько отрисовывать заставку
+                    # обнуляем таймер, чтобы пошел отсчет сколько отрисовывать заставку
+                    timer_game_over_show_level = Timer()
                     game_playing = False  # игра оставливается
                     game_over = True  # начинается заставка в конце игры
                     player_won = True  # запускаются действия, если игрок выирал
                     sound_win.play()
-                steping(level, move, necessary_count_money, full_screen, timer)  # если игрок пытается сдвинуться, надясь на середине блока
+                # если игрок пытается сдвинуться, надясь на середине блока
+                steping(level, move, necessary_count_money, full_screen, timer)
                 # передаем в метод анимации игрока список с изображениями(анимация сама) и направление движения
                 player.animation(frames_player, move)
 
@@ -883,10 +892,11 @@ def main():
             while len(money_sprites) < MAX_COUNT_MONEY:
                 create_money(level, money_image, random.randint(0, level_x), random.randint(0, level_y), full_screen)
             while len(ghost_sprites) < max_count_ghost:
-                create_ghost(level, frames_ghost[0], random.randint(0, level_x), random.randint(0, level_y), full_screen)
+                create_ghost(level, frames_ghost[0], random.randint(0, level_x),
+                             random.randint(0, level_y), full_screen)
 
             if player.get_count_lifes() == 0:  # если жизни игрока закончились, он проиграл
-                timer_game_over_show_level = Timer()  # обнуляем таймер, чтобы пошел отсчет сколько отрисовывать заставку
+                timer_game_over_show_level = Timer()  # обнуляем таймер, чтобы пошел отсчет отрисовки заставки
                 game_playing = False  # игра останавливается
                 game_over = True  # заставка в конце игры
                 player_won = False  # запускаются действия, если игрок проиграл
@@ -905,7 +915,8 @@ def main():
         bullet_sprites.draw(screen)
 
         # отрисовка кол-ва денег, патрон, жизней игрока в углу экрана
-        draw_results(screen, money_image_result, heart_image, player.get_count_lifes(), necessary_count_money, full_screen)
+        draw_results(screen, money_image_result, heart_image, player.get_count_lifes(),
+                     necessary_count_money, full_screen)
 
         if pause:  # если пауза, то отрисовываем все кнопки
             pause_in_game(screen, full_screen)  # рисует полупрозрачный прямоугольник под кнопками
@@ -961,6 +972,9 @@ bullet_image_in_rect = load_image("bullet.png", (30, 30), -1)
 money_image = load_image("money_50.jpg", (20, 10), -1)
 money_image_result = load_image("money_50.jpg", (35, 15), -1)
 heart_image = load_image("heart.png", (30, 30), -1)
+
+STEP_SCREEN_X = 0  # отступ при развернутом экране
+STEP_SCREEN_Y = 0
 
 pygame.init()
 pygame.display.set_caption(NAME_GAME)  # изменение названия игры
